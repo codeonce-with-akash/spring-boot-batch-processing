@@ -1,0 +1,546 @@
+*) Spring boot batch processing config components.
+
+1) JobExecutionListener:	(I)	
+=> By implementing this interface, we can perform event handling on job activities like:
+	a) When job is started 
+	b) When job is completed
+	c) What is the status of job completion(success or failuer)
+	and etc...
+=> In creation of job object, we need JobListener object.
+
+CODE:
+=====
+
+package com.batch.processing.listener;
+
+import java.util.Date;
+
+import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobExecutionListener;
+
+@Component("jmListener")
+public class JobMonitoringListener implements JobExecutionListener {
+
+	private Long startTime, endTime;
+
+	public JobMonitoringListener() {
+		System.out.println("JOBMONITORINGLISTENER :: 0-PARAM CONSTRUCTOR");
+	}
+
+	@Override
+	public void beforeJob(JobExecution jobExecution) {
+		System.out.println("JOB IS ABOUT TO BEGING AT :: " + new Date());
+		startTime = System.currentTimeMillis();
+		System.out.println("JOB STATUS :: " + jobExecution.getStatus());
+	}
+
+	@Override
+	public void afterJob(JobExecution jobExecution) {
+		System.out.println("JOB COMPLETED AT :: " + new Date());
+		endTime = System.currentTimeMillis();
+		System.out.println("JOB STATUS :: "+ jobExecution.getStatus());
+		System.out.println("JOB EXECUTION TIME :: " + (endTime - startTime));
+		System.out.println("JOB EXIT STATUS :: " + jobExecution.getExitStatus());
+	}
+
+}
+-----------------------------------------------
+
+2)	ItemReader: (I)
+=>	All the item reader classes in spring batch are the implementation classes of org.sf.batch.item.ItemReader<T>
+=>	We generally do not implement ItemReader(I) that means we do not need to develop custom ItemReaders because
+	spring batch has provided multiple pre-defined ItemReaders.
+=>	The read() method of ItemReader reads info from "SOURCE REPOSITORY" (like File, DB and etc) and gives either 
+	String object or model class object representing each record of the info.
+=> Some readymade ItemReaders are:
+	* FlatFileIterReader
+	* JdbcCursorIterReader
+	* JdbcPagingIterReader
+	* JmsIterReader
+	* JpaCursorItemReader
+	* JpaPagingItemReader
+	* JsonItemReader
+	* KafkaItemReader
+	* MongoItemReader
+	* MultiResourceItemReader
+=>	Since all the above ItemReaders are pre-defined classes, so we can configure them as spring bean using
+	@Bean method of @Configuration class/main class(which internally @Configuration class)
+	
+CODE:
+=====
+
+package com.batch.processing.reader;
+
+import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.NonTransientResourceException;
+import org.springframework.batch.item.ParseException;
+import org.springframework.batch.item.UnexpectedInputException;
+
+@Component("bdReader")
+public class BookDetailsReader implements ItemReader<String> {
+
+	String books[] = new String[] { "CRT", "TIJ", "HFJ", "EJ", "BBJ" };
+	Integer count = 0;
+
+	public BookDetailsReader() {
+		System.out.println("BOOKDETAILSREADER :: 0-PARAM CONSTRUCTOR");
+	}
+
+	@Override
+	public String read() throws Exception, UnexpectedInputException, ParseException, NonTransientResourceException {
+
+		System.out.println("BookDetailsReader.read()");
+
+		if (count < books.length)
+			return books[count++];
+		else
+			return null;
+	}
+
+}
+-----------------------------------------------
+
+3)	ItemProcessor:	(I)
+=>	It is implementation class of org.sf.batch.item.ItemProcessor<I,O>
+=>	Very limited readymade ItemProcessors are available, so we generally develop custom ItemProcessors.	
+=>	The <I> of ItemProcessor must match with the <T> of ItemReader and
+	the <O> of ItemProcessor must match with the <T> of ItemWriter.
+
+CODE:
+=====
+
+package com.batch.processing.processor;
+
+import org.springframework.batch.item.ItemProcessor;
+import org.springframework.stereotype.Component;
+
+@Component("bdProcessor")
+public class BookDetailsProcessor implements ItemProcessor<String, String> {
+
+	public BookDetailsProcessor() {
+		System.out.println("BOOKDETAILSPROCESSOR :: 0-PARAM CONSTRUCTOR");
+	}
+
+	@Override
+	public String process(String item) throws Exception {
+		System.out.println("BookDetailsProcessor.process()");
+		String bookWithTitle = null;
+		if (item.equalsIgnoreCase("CRJ"))
+			bookWithTitle = item + "BY HS AND PN";
+		else if (item.equalsIgnoreCase("TIJ"))
+			bookWithTitle = item + "BY BE";
+		else if (item.equalsIgnoreCase("HFJ"))
+			bookWithTitle = item + "BY KS";
+		else if (item.equalsIgnoreCase("EJ"))
+			bookWithTitle = item + "BY JB";
+		else if (item.equalsIgnoreCase("BBJ"))
+			bookWithTitle = item + "BY RNR";
+		return bookWithTitle;
+	}
+
+}
+-----------------------------------------------
+	
+4)	ItemWriter:	(I)
+=>	It is given to write given chunck/batch of information to "DESTINATION".
+=>	Generally we do not develop ItemWriters because there are multiple readymade ItemWriters to use.
+=>	All ItemWriters are implementation classes of org.sf.batch.ItemWriter<T>.
+=>	Some readymade ItemWriters are:
+	* FlatFileIterWriter
+	* HibernateItemWriter
+	* JdbcBatchItemWriter
+	* JmsItermWriter
+	* JpaItemWriter
+	* KafkaItemWriter
+	* MongoItemWriter
+	* MultiResourceItemWriter
+	* StaxEventItemWriter
+=>	Since all the above ItemReaders are pre-defined classes, so we can configure them as spring bean using
+	@Bean method of @Configuration class/main class(which internally @Configuration class)	
+	
+CODE:
+=====
+
+package com.batch.processing.writer;
+
+import org.springframework.batch.item.Chunk;
+import org.springframework.batch.item.ItemWriter;
+import org.springframework.stereotype.Component;
+
+@Component("bdWriter")
+public class BookDetailsWirter implements ItemWriter<String> {
+
+	public BookDetailsWirter() {
+		System.out.println("BOOKDETAILSWIRTER :: 0-PARAM CONSTRUCTOR)");
+	}
+	
+	@Override
+	public void write(Chunk<? extends String> items) throws Exception {
+		System.out.println("BookDetailsWirter.write()");
+		items.forEach(s -> System.out.println(s));
+	}
+
+}
+-----------------------------------------------
+--------------
+config class:
+--------------
+	
+5)	Step: (I)
+=>	It is implementation class of org.sf.batch.core.Step(I)
+=>	Each Step object represents one task/sub tasks of Job.
+=>	Every Step object must be linked with 1 reader, 1 writer and 1 processor object.
+=>	We generally create Step object by using the "StepBuilderFactory" object that comes with spring boot app 
+	through AutoConfiguration.
+=>	Every Step object must contain the following 6 details like:
+	* Step name
+	* <Input, Output>
+	* Chunk size
+	* reader object
+	* writer object
+	* processor object
+=>	We generally use @Bean() method in @Configuration class to create Step object with "StepBuilderFactory"
+	object and providing the above 6 details.
+
+6)	Job:	(I) 
+=>	It is the object of class that implements org.sf.batch.core.Job(I)
+=>	Job defines the work to be completed.
+=>	Generally one application contains one Job object with one or more Step object(task/sub tasks)
+=>	To create Job object we use "JobBuilderFactory" that comes with spring batch app through AutoConfiguration.
+=>	To create Job object we required multiple details like:
+	* name
+	* listener
+	* incrementor (specifies the order of executing steps)
+	* starting step
+	* next step
+	* next step
+	
+CODE:
+=====
+
+package com.batch.processing.config;
+
+import org.springframework.batch.core.Job;
+import org.springframework.batch.core.Step;
+import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
+import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
+import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.core.launch.support.RunIdIncrementer;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import com.batch.processing.listener.JobMonitoringListener;
+import com.batch.processing.processor.BookDetailsProcessor;
+import com.batch.processing.reader.BookDetailsReader;
+import com.batch.processing.writer.BookDetailsWirter;
+
+/**
+ * @EnableBatchProcessing: Gives spring batch features through AutoConfiguration like 
+ * giving InMemoryJobRepository, JobBuilderFactory, StepBuilerFactory and etc...
+ * **/
+
+@Configuration
+@EnableBatchProcessing
+public class BatchConfig {
+	@Autowired
+	private JobBuilderFactory jobBuilderFactory;
+
+	@Autowired
+	private StepBuilderFactory stepBuilderFactory;
+	
+	@Autowired
+	private JobMonitoringListener jobMonitoringListener;
+	
+	@Autowired
+	private BookDetailsReader bookDetailsReader;
+	
+	@Autowired
+	private BookDetailsProcessor bookDetailsProcessor;
+	
+	@Autowired
+	private BookDetailsWirter bookDetailsWirter;
+	
+	//1. create Step object using StepBuilderFactory.
+	@Bean(name = "step1")
+	public Step createStep1() {
+		System.out.println("BatchConfig.createStep1()");
+		return stepBuilderFactory.get("step1")
+				.<String, String>chunk(2)
+				.reader(bookDetailsReader)
+				.writer(bookDetailsWirter)
+				.processor(bookDetailsProcessor)
+				.build();
+	} 
+	
+	//2. create Job using JobBuilderFactory
+	@Bean(name = "job1")
+	public Job createJob() {
+		System.out.println("BatchConfig.createJob()");
+		return jobBuilderFactory.get("job1")
+				.incrementer(new RunIdIncrementer())
+				.listener(jobMonitoringListener)
+				.start(createStep1())
+				.build();
+	}
+}
+
+-----------------------------------------------	
+----------------------------
+Client app as Runner class:
+----------------------------
+7)	JobLauncher	: (I)
+=>	Here we inject "JobLauncher" object present in org.springframework.batch.core.launch packag, given by 
+	AutoConfiguration and also Job object configure in the configuration file using @Autowired annotation.
+=>	We build "JobParameters" (C) that is optional using "JobParametersBuilder" object.
+=>	We call run(job, parameters) on "JobLauncher" object to run the job.
+
+NOTE:	JobParametersBuilder: Helper class for creating JobParameters. 
+		Useful because all JobParameter objects are immutable and must be instantiated separately 
+		to ensure type safety. 
+		
+CODE:
+=====
+
+package com.batch.processing.runner;
+
+import org.springframework.batch.core.Job;
+import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobParameters;
+import org.springframework.batch.core.JobParametersBuilder;
+import org.springframework.batch.core.launch.JobLauncher;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.stereotype.Component;
+
+@Component
+public class BatchProcessingTestRunner implements CommandLineRunner {
+	
+	@Autowired
+	private JobLauncher jobLauncher;
+	
+	@Autowired
+	private Job job;
+	
+	@Override
+	public void run(String... args) throws Exception {
+		//1. Prepare JobParams
+		JobParameters params = new JobParametersBuilder()
+				.addLong("time", System.currentTimeMillis())
+				.toJobParameters();
+		
+		//2. Run the Job
+		JobExecution execution = jobLauncher.run(job, params);
+	}
+
+}
+-----------------------------------------------		
+
+POC:
+====
+1)	Create spring boot starter project by adding following dependencies:
+	* spring-boot-starter-batch
+	* h2 database
+	
+2)	Add following entries in application.properties file
+	#this key-pair indicates wheather batch code should execute on the app startup or on demand 
+	#default is true
+	spring.batch.job.enabled=true
+
+	#this key-pair indicates it is using underlying DB s/w to create lots of db tables to track
+	#of job execution related operations.
+	spring.batch.jdbc.initialize-schema=always
+
+3)	JobMonitoringListener
+
+4)	BookDetailsReader
+
+5)	BookDetailsProcessor
+
+6)	BookDetailsWirter
+
+7)	BatchConfig
+
+8)	BatchProcessingTestRunner	
+-----------------------------------------------	
+
+FLOW#1:	(with respect to: spring.batch.job.enabled=true)
+=======
+spring.batch.job.enabled=true: this key-pair indicates batch code should 
+execute on the app startup default one is also true only.
+========================================================
+1)	Application started 	
+Application.main() started at :: Wed Aug 21 15:06:43 IST 2024
+--------------------------------------------------------
+
+2)	Pre-Instantiation of all singleton-scope spring beans and store all instances 
+	in internal cache of IOC container.
+
+JOBMONITORINGLISTENER :: 0-PARAM CONSTRUCTOR
+BOOKDETAILSREADER :: 0-PARAM CONSTRUCTOR
+BOOKDETAILSPROCESSOR :: 0-PARAM CONSTRUCTOR
+BOOKDETAILSWIRTER :: 0-PARAM CONSTRUCTOR)
+BatchConfig.createJob()
+BatchConfig.createStep1()
+--------------------------------------------------------
+3)	JobExecutionListener beforeJob() method is executed.
+
+JobMonitoringListener.beforeJob()
+JOB IS ABOUT TO BEGING AT :: Wed Aug 21 15:06:43 IST 2024
+JOB STATUS :: STARTED
+--------------------------------------------------------
+4)	Executing step: [step1].
+=>	While crating Step object we need to pass the chunk(size), so here in this example we passed
+	chunk(2) as per the flow: 
+	-> first reader reads one element from source repository and handover to processor
+	-> processor process an element and stored it into chunk
+	-> again reader read second element from source repository and handover to processor
+	-> again processor process an element and stored it into chunk
+	-> as we mentioned chunk size is: 2 so after feeling 2 elements inside chunk it will pass this 
+	   chunk of data to writer and writer writes this data to destination 
+	   (in our case printing it on console)
+	
+	-> this process is going on until last element is read, process and write.
+	
+BookDetailsReader.read()
+BookDetailsReader.read()
+BookDetailsProcessor.process()
+BookDetailsProcessor.process()
+BookDetailsWirter.write()
+CRJBY HS AND PN
+TIJBY BE
+
+BookDetailsReader.read()
+BookDetailsReader.read()
+BookDetailsProcessor.process()
+BookDetailsProcessor.process()
+BookDetailsWirter.write()
+HFJBY KS
+EJBY JB
+
+BookDetailsReader.read()
+BookDetailsReader.read()
+BookDetailsProcessor.process()
+BookDetailsProcessor.process()
+BookDetailsWirter.write()
+BBJBY RNR
+SBMSBY RAGHU
+
+BookDetailsReader.read()	   
+--------------------------------------------------------
+5) Step: [step1] executed in 30ms: (calculating Step1 execution time)
+--------------------------------------------------------
+6)JobMonitoringListener afterJob() method is executed.
+ 
+JobMonitoringListener.afterJob()
+JOB COMPLETED AT :: Wed Aug 21 15:06:43 IST 2024
+JOB STATUS :: COMPLETED
+JOB EXECUTION TIME :: 46
+JOB EXIT STATUS :: exitCode=COMPLETED;exitDescription=
+--------------------------------------------------------
+7)	SpringApplication.run(Application.class, args) method internally invokes the 
+	BatchProcessingTestRunner class run() method.
+	
+BatchProcessingTestRunner.run()
+--------------------------------------------------------
+8)	As we write the JobLauncher code inside Runner class run() method, 
+	it will again invoke the JobMonitoringListener beforeJob() method.
+
+JobMonitoringListener.beforeJob()
+JOB IS ABOUT TO BEGING AT :: Wed Aug 21 15:06:43 IST 2024
+JOB STATUS :: STARTED 
+--------------------------------------------------------
+9)	Executing step: [step1]
+--------------------------------------------------------
+10)	BookDetailsReader.read() method is executed
+--------------------------------------------------------
+11)	Step: [step1] executed in 8ms: (calculating step1 execution time)
+--------------------------------------------------------
+12)	JobMonitoringListener.afterJob() method is executed
+--------------------------------------------------------
+JobMonitoringListener.afterJob()
+JOB COMPLETED AT :: Wed Aug 21 15:06:43 IST 2024
+JOB STATUS :: COMPLETED
+JOB EXECUTION TIME :: 18
+JOB EXIT STATUS :: exitCode=COMPLETED;exitDescription=
+
+========================================================================================
+
+FLOW#2:	(with respect to: spring.batch.job.enabled=false)
+=======
+spring.batch.job.enabled=false: this key-pair indicates batch code should execute on demand, 
+default one is true.
+
+1)	Application started 	
+Application.main() started at :: Wed Aug 21 15:06:43 IST 2024
+--------------------------------------------------------
+
+2)	Pre-Instantiation of all singleton-scope spring beans and store all instances 
+	in internal cache of IOC container.
+
+JOBMONITORINGLISTENER :: 0-PARAM CONSTRUCTOR
+BOOKDETAILSREADER :: 0-PARAM CONSTRUCTOR
+BOOKDETAILSPROCESSOR :: 0-PARAM CONSTRUCTOR
+BOOKDETAILSWIRTER :: 0-PARAM CONSTRUCTOR)
+BatchConfig.createJob()
+BatchConfig.createStep1()
+--------------------------------------------------------
+3)	SpringApplication.run(Application.class, args) method internally invokes the 
+	BatchProcessingTestRunner class run() method.
+	
+BatchProcessingTestRunner.run()
+--------------------------------------------------------
+4)	JobExecutionListener beforeJob() method is executed.
+
+JobMonitoringListener.beforeJob()
+JOB IS ABOUT TO BEGING AT :: Wed Aug 21 15:06:43 IST 2024
+JOB STATUS :: STARTED
+--------------------------------------------------------
+5)	Executing step: [step1].
+=>	While crating Step object we need to pass the chunk(size), so here in this example we passed
+	chunk(2) as per the flow: 
+	-> first reader reads one element from source repository and handover to processor
+	-> processor process an element and stored it into chunk
+	-> again reader read second element from source repository and handover to processor
+	-> again processor process an element and stored it into chunk
+	-> as we mentioned chunk size is: 2 so after feeling 2 elements inside chunk it will pass this chunk of data
+	   to writer and writer writes this data to destination (in our case printing it on console)
+	
+	-> this process is going on until last element is read, process and write.
+	
+BookDetailsReader.read()
+BookDetailsReader.read()
+BookDetailsProcessor.process()
+BookDetailsProcessor.process()
+BookDetailsWirter.write()
+CRJBY HS AND PN
+TIJBY BE
+
+BookDetailsReader.read()
+BookDetailsReader.read()
+BookDetailsProcessor.process()
+BookDetailsProcessor.process()
+BookDetailsWirter.write()
+HFJBY KS
+EJBY JB
+
+BookDetailsReader.read()
+BookDetailsReader.read()
+BookDetailsProcessor.process()
+BookDetailsProcessor.process()
+BookDetailsWirter.write()
+BBJBY RNR
+SBMSBY RAGHU
+
+BookDetailsReader.read()	   
+--------------------------------------------------------
+6) Step: [step1] executed in 30ms: (calculating Step1 execution time)
+--------------------------------------------------------
+7)JobMonitoringListener afterJob() method is executed.
+ 
+JobMonitoringListener.afterJob()
+JOB COMPLETED AT :: Wed Aug 21 15:06:43 IST 2024
+JOB STATUS :: COMPLETED
+JOB EXECUTION TIME :: 46
+JOB EXIT STATUS :: exitCode=COMPLETED;exitDescription=
+--------------------------------------------------------
