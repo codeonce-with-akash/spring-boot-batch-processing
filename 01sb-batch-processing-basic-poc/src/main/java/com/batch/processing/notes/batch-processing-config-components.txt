@@ -490,13 +490,16 @@ BatchConfig.createStep1()
 	
 BatchProcessingTestRunner.run()
 --------------------------------------------------------
-4)	JobExecutionListener beforeJob() method is executed.
+4)	As we write the JobLauncher code inside Runner class run() method, 
+	it will invoke the JobMonitoringListener beforeJob() method.
+
+5)	JobExecutionListener beforeJob() method is executed.
 
 JobMonitoringListener.beforeJob()
 JOB IS ABOUT TO BEGING AT :: Wed Aug 21 15:06:43 IST 2024
 JOB STATUS :: STARTED
 --------------------------------------------------------
-5)	Executing step: [step1].
+6)	Executing step: [step1].
 =>	While crating Step object we need to pass the chunk(size), so here in this example we passed
 	chunk(2) as per the flow: 
 	-> first reader reads one element from source repository and handover to processor
@@ -534,9 +537,9 @@ SBMSBY RAGHU
 
 BookDetailsReader.read()	   
 --------------------------------------------------------
-6) Step: [step1] executed in 30ms: (calculating Step1 execution time)
+7) Step: [step1] executed in 30ms: (calculating Step1 execution time)
 --------------------------------------------------------
-7)JobMonitoringListener afterJob() method is executed.
+8)JobMonitoringListener afterJob() method is executed.
  
 JobMonitoringListener.afterJob()
 JOB COMPLETED AT :: Wed Aug 21 15:06:43 IST 2024
