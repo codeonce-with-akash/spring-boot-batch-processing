@@ -20,7 +20,6 @@ import com.batch.processing.writer.BookDetailsWirter;
  * giving InMemoryJobRepository, JobBuilderFactory, StepBuilerFactory and etc...
  * **/
 
-@SuppressWarnings("removal")
 @Configuration
 @EnableBatchProcessing
 public class BatchConfig {
@@ -45,7 +44,7 @@ public class BatchConfig {
 	
 	//1. create Step object using StepBuilderFactory.
 	@Bean(name = "step1")
-	public Step createStep1() {
+	Step createStep1() {
 		System.out.println("BatchConfig.createStep1()");
 		return stepBuilderFactory.get("step1")
 				.<String, String>chunk(2)
@@ -57,7 +56,7 @@ public class BatchConfig {
 	
 	//2. create Job using JobBuilderFactory
 	@Bean(name = "job1")
-	public Job createJob() {
+	Job createJob() {
 		System.out.println("BatchConfig.createJob()");
 		return jobBuilderFactory.get("job1")
 				.incrementer(new RunIdIncrementer())
